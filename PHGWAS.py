@@ -12,36 +12,45 @@ import matplotlib.pyplot as plt
 class PHGWAS:
     def __init__(self, file_PPI="interactome.pkl", file_GWAS="gwashit_t2dm_LCC.tsv", use_LCC=True):
         with open(file_PPI, 'rb') as f:
-            self.G= pickle.load(f)
+            self.G = pickle.load(f)
         
-        seeds_, pvals_ = [], []
+        seeds_, pvals_, mlogpvals_ = [], [], []
         for line in open(file_GWAS, 'r'):
             if line[0] == '#':
                 continue
             line_data = line.strip().split('\t')
-            seeds_.append(line_data[0])
-            pvals_.append(float(line_data[2]))
+            if line_data[0] in self.G.nodes:
+                seeds_.append(line_data[0]) # Gene
+                pvals_.append(float(line_data[2])) # P-value
+                mlogpvals_.append(float(line_data[3])) # -log(P-value)
+        print("# of imported seeds in PPI:", len(seeds_))
         
-        self.seeds, self.pvals = zip(*sorted(zip(seeds_, pvals_), key=lambda x: x[1]))
-        self.seeds, self.pvals = list(self.seeds), list(self.pvals)
+        self.seeds, self.pvals, self.mlogpvals = zip(*sorted(zip(seeds_, pvals_, mlogpvals_), key=lambda x: x[1]))
+        self.seeds, self.pvals, self.mlogpvals = list(self.seeds), list(self.pvals), list(self.mlogpvals)
         
         self.G = self.G.subgraph(self.seeds)
         if use_LCC:
             self.G = self.G.subgraph(max(nx.connected_components(self.G), key=len)).copy()
             print("Observable disease module:", len(self.G.nodes))
     
-    def homology_compute(self, max_dim=2):
+    def homology_compute(self, max_dim=2, thr_type="pval"):
         A = np.full((len(self.seeds), len(self.seeds)), np.inf)
         np.fill_diagonal(A, 0)
         gene_to_idx = {g:i for i, g in enumerate(self.seeds)}
 
+        # assuming self.pvals is sorted.
         for i, gene in enumerate(self.seeds):
-            p_gene = self.pvals[i]
-            A[i][i] = p_gene
+            if thr_type == "pval":
+                delta = self.pvals[i]
+            elif thr_type == "logpval":
+                delta = -self.mlogpvals[i]
+            else:
+                raise Exception("Threshold type error.")
+            A[i][i] = delta
             for gene_adj in self.G[gene]:
                 j = gene_to_idx[gene_adj]
-                A[i][j] = p_gene
-                A[j][i] = p_gene
+                A[i][j] = delta
+                A[j][i] = delta
         
         perst_dgms = ripser(A, distance_matrix=True, maxdim=max_dim)
         diagrams = perst_dgms['dgms']
