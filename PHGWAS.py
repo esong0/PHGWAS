@@ -83,9 +83,3 @@ class PHGWAS:
         print("Union of H1 cycles:", sorted(h1_cycle_union))
         print("Size:", len(h1_cycle_union))
         return h1_cycle_union
-
-if __name__ == "__main__":
-    ph_gwas = PHGWAS()
-    diagrams = ph_gwas.homology_compute()
-    ph_gwas.persistence_diagram(diagrams)
-    ph_gwas.h1_cycle_compute()
